@@ -25,7 +25,6 @@ export async function getUser() {
     .eq("id", user.id)
     .single()
 
-  // If profile doesn't exist, return basic user info
   if (!profile) {
     return {
       id: user.id,

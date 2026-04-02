@@ -102,9 +102,7 @@ export default function SignupPage() {
       {/* Left Panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-secondary items-center justify-center p-12 border-r border-border">
         <div className="max-w-md">
-          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center mb-8">
-            <span className="text-primary-foreground text-xl font-bold">LP</span>
-          </div>
+          <img src="/logo.png" alt="Luu Pain Marketing" className="w-14 h-14 rounded-xl object-cover mb-8" />
           <h1 className="text-4xl font-bold mb-4 leading-tight">
             Start your marketing journey today
           </h1>

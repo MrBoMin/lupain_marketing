@@ -50,9 +50,11 @@ export function Navbar({ user }: NavbarProps) {
       <div className="container mx-auto px-6 h-16 flex items-center justify-between">
         <div className="flex items-center gap-10">
           <Link href="/" className="flex items-center gap-3 font-bold text-lg tracking-tight">
-            <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground text-sm font-bold">LP</span>
-            </div>
+            <img
+              src="/logo.png"
+              alt="Luu Pain Marketing"
+              className="w-9 h-9 rounded-lg object-cover"
+            />
             <span className="hidden sm:inline">Luu Pain Marketing</span>
           </Link>
 

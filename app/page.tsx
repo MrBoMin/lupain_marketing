@@ -91,15 +91,15 @@ export default async function HomePage() {
       <section className="py-24 px-6">
         <div className="container mx-auto max-w-4xl text-center">
           <div className="space-y-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-secondary/50 text-sm">
-              <span className="w-2 h-2 rounded-full bg-foreground animate-pulse" />
-              <span className="text-muted-foreground">New courses available</span>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-primary/30 bg-primary/10 text-sm">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-foreground/70">New courses available</span>
             </div>
 
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1]">
               Learn marketing.
               <br />
-              <span className="text-muted-foreground">Grow your business.</span>
+              <span className="text-primary">Grow your business.</span>
             </h1>
 
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
@@ -338,9 +338,7 @@ export default async function HomePage() {
         <div className="container mx-auto max-w-6xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground text-[10px] font-bold">LP</span>
-              </div>
+              <img src="/logo.png" alt="Luu Pain Marketing" className="w-7 h-7 rounded-md object-cover" />
               <span className="text-sm text-muted-foreground">Luu Pain Marketing</span>
             </div>
             <p className="text-sm text-muted-foreground">
