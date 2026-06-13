@@ -1,15 +1,8 @@
-import nodemailer from "nodemailer"
 import { BRAND_COLOR, BRAND_NAME } from "@/lib/brand"
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-})
-
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+const RESEND_API_URL = "https://api.resend.com/emails"
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@luupainmarketing.com"
 
 interface SendEmailOptions {
   to: string
@@ -18,13 +11,34 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, subject, html }: SendEmailOptions) {
+  const apiKey = process.env.RESEND_API_KEY
+
+  if (!apiKey) {
+    console.error("RESEND_API_KEY is not set")
+    return { error: "Email service is not configured" }
+  }
+
   try {
-    await transporter.sendMail({
-      from: `"${BRAND_NAME}" <${process.env.GMAIL_USER}>`,
-      to,
-      subject,
-      html,
+    const response = await fetch(RESEND_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `${BRAND_NAME} <${FROM_EMAIL}>`,
+        to,
+        subject,
+        html,
+      }),
     })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null)
+      console.error("Resend email error:", data || response.statusText)
+      return { error: "Failed to send email" }
+    }
+
     return { success: true }
   } catch (error) {
     console.error("Failed to send email:", error)

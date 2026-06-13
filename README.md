@@ -38,7 +38,7 @@ A modern, full-featured Learning Management System built with Next.js, Supabase,
 - **Video Hosting:** Vimeo
 - **Styling:** Tailwind CSS v4
 - **UI Components:** shadcn/ui
-- **Email:** Nodemailer (Gmail)
+- **Email:** Resend
 - **Deployment:** Vercel
 
 ## Prerequisites
@@ -95,8 +95,8 @@ NEXT_PUBLIC_BRAND_NAME=Your Academy Name
 NEXT_PUBLIC_BRAND_DESCRIPTION=Learn practical skills through expert-led video courses.
 BRAND_NAME=Your Academy Name
 BRAND_COLOR=#EAB308
-GMAIL_USER=your_gmail@gmail.com
-GMAIL_APP_PASSWORD=your_gmail_app_password
+RESEND_API_KEY=your_resend_api_key
+RESEND_FROM_EMAIL=noreply@your-domain.com
 ```
 
 After signing in as admin, go to `/admin/settings` and replace the placeholder payment account before accepting paid enrollments.
