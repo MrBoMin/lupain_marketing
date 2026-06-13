@@ -99,6 +99,16 @@ CREATE TRIGGER update_lessons_updated_at BEFORE UPDATE ON lessons
 CREATE TRIGGER update_lesson_progress_updated_at BEFORE UPDATE ON lesson_progress
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Helper used by RLS policies to avoid recursive reads from users policies
+CREATE OR REPLACE FUNCTION public.is_admin(user_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.users
+    WHERE id = user_id AND role = 'admin'
+  );
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE courses ENABLE ROW LEVEL SECURITY;
@@ -117,12 +127,7 @@ CREATE POLICY "Users can update their own profile"
 
 CREATE POLICY "Admins can view all users"
   ON users FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
-    )
-  );
+  USING (public.is_admin(auth.uid()));
 
 -- RLS Policies for courses table
 CREATE POLICY "Anyone can view published courses"
@@ -131,39 +136,19 @@ CREATE POLICY "Anyone can view published courses"
 
 CREATE POLICY "Admins can view all courses"
   ON courses FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
-    )
-  );
+  USING (public.is_admin(auth.uid()));
 
 CREATE POLICY "Admins can insert courses"
   ON courses FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
-    )
-  );
+  WITH CHECK (public.is_admin(auth.uid()));
 
 CREATE POLICY "Admins can update courses"
   ON courses FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
-    )
-  );
+  USING (public.is_admin(auth.uid()));
 
 CREATE POLICY "Admins can delete courses"
   ON courses FOR DELETE
-  USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
-    )
-  );
+  USING (public.is_admin(auth.uid()));
 
 -- RLS Policies for lessons table
 CREATE POLICY "Users can view lessons of enrolled courses"
@@ -178,12 +163,7 @@ CREATE POLICY "Users can view lessons of enrolled courses"
 
 CREATE POLICY "Admins can manage all lessons"
   ON lessons FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
-    )
-  );
+  USING (public.is_admin(auth.uid()));
 
 -- RLS Policies for enrollments table
 CREATE POLICY "Users can view their own enrollments"
@@ -192,30 +172,15 @@ CREATE POLICY "Users can view their own enrollments"
 
 CREATE POLICY "Admins can view all enrollments"
   ON enrollments FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
-    )
-  );
+  USING (public.is_admin(auth.uid()));
 
 CREATE POLICY "Admins can insert enrollments"
   ON enrollments FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
-    )
-  );
+  WITH CHECK (public.is_admin(auth.uid()));
 
 CREATE POLICY "Admins can delete enrollments"
   ON enrollments FOR DELETE
-  USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
-    )
-  );
+  USING (public.is_admin(auth.uid()));
 
 -- RLS Policies for lesson_progress table
 CREATE POLICY "Users can view their own progress"
@@ -232,12 +197,7 @@ CREATE POLICY "Users can update their own progress"
 
 CREATE POLICY "Admins can view all progress"
   ON lesson_progress FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
-    )
-  );
+  USING (public.is_admin(auth.uid()));
 
 -- Function to automatically create user profile after signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
