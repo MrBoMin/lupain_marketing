@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: "/Users/bomin/Documents/LuPainMarketing/mini_lms-main",
+    root: process.cwd(),
   },
   images: {
     remotePatterns: [

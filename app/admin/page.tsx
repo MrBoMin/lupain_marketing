@@ -3,7 +3,49 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { getUser } from "@/app/actions/auth"
 import { Navbar } from "@/components/navbar"
-import { BookOpen, Users, GraduationCap, ArrowRight, Plus, Settings, PlayCircle } from "lucide-react"
+import { BookOpen, Users, GraduationCap, ArrowRight, Plus, PlayCircle, type LucideIcon } from "lucide-react"
+
+type Stat = {
+  label: string
+  value: number
+  icon: LucideIcon
+  highlight?: boolean
+}
+
+type RecentEnrollment = {
+  id: string
+  enrolled_at: string
+  users:
+    | {
+        full_name: string | null
+        email: string | null
+      }
+    | {
+        full_name: string | null
+        email: string | null
+      }[]
+    | null
+  courses:
+    | {
+        title: string | null
+      }
+    | {
+        title: string | null
+      }[]
+    | null
+}
+
+type RecentEnrollmentItem = {
+  id: string
+  enrolled_at: string
+  user: {
+    full_name: string | null
+    email: string | null
+  } | null
+  course: {
+    title: string | null
+  } | null
+}
 
 export default async function AdminDashboard() {
   const user = await getUser()
@@ -14,39 +56,33 @@ export default async function AdminDashboard() {
 
   const supabase = await createClient()
 
-  // Get statistics
-  const { count: totalCourses } = await supabase
-    .from("courses")
-    .select("*", { count: "exact", head: true })
+  const [
+    { count: totalCourses },
+    { count: totalUsers },
+    { count: totalEnrollments },
+    { count: pendingEnrollments },
+    { data: recentEnrollments },
+  ] = await Promise.all([
+    supabase.from("courses").select("id", { count: "exact", head: true }),
+    supabase.from("users").select("id", { count: "exact", head: true }),
+    supabase.from("enrollments").select("id", { count: "exact", head: true }),
+    supabase
+      .from("enrollments")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending"),
+    supabase
+      .from("enrollments")
+      .select(`
+        id,
+        enrolled_at,
+        users (full_name, email),
+        courses (title)
+      `)
+      .order("enrolled_at", { ascending: false })
+      .limit(5),
+  ])
 
-  const { count: totalUsers } = await supabase
-    .from("users")
-    .select("*", { count: "exact", head: true })
-
-  const { count: totalEnrollments } = await supabase
-    .from("enrollments")
-    .select("*", { count: "exact", head: true })
-
-  const { count: pendingEnrollments } = await supabase
-    .from("enrollments")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "pending")
-
-  const { count: totalVideos } = await supabase
-    .from("free_videos")
-    .select("*", { count: "exact", head: true })
-
-  const { data: recentEnrollments } = await supabase
-    .from("enrollments")
-    .select(`
-      *,
-      users (full_name, email),
-      courses (title)
-    `)
-    .order("enrolled_at", { ascending: false })
-    .limit(5)
-
-  const stats = [
+  const stats: Stat[] = [
     { label: "Total Courses", value: totalCourses || 0, icon: BookOpen },
     { label: "Total Users", value: totalUsers || 0, icon: Users },
     { label: "Enrollments", value: totalEnrollments || 0, icon: GraduationCap },
@@ -64,6 +100,24 @@ export default async function AdminDashboard() {
     { label: "Enrollments", href: "/admin/enrollments", icon: GraduationCap },
     { label: "Students", href: "/admin/students", icon: Users },
   ]
+
+  const recentEnrollmentItems: RecentEnrollmentItem[] = (recentEnrollments || []).map(
+    (enrollment: RecentEnrollment) => {
+      const enrollmentUser = Array.isArray(enrollment.users)
+        ? enrollment.users[0]
+        : enrollment.users
+      const enrollmentCourse = Array.isArray(enrollment.courses)
+        ? enrollment.courses[0]
+        : enrollment.courses
+
+      return {
+        id: enrollment.id,
+        enrolled_at: enrollment.enrolled_at,
+        user: enrollmentUser || null,
+        course: enrollmentCourse || null,
+      }
+    }
+  )
 
   return (
     <div className="min-h-screen bg-background">
@@ -89,7 +143,7 @@ export default async function AdminDashboard() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-          {stats.map((stat: any) => (
+          {stats.map((stat) => (
             <div
               key={stat.label}
               className={`border rounded-xl p-6 ${
@@ -135,23 +189,23 @@ export default async function AdminDashboard() {
         <div>
           <h2 className="text-xl font-semibold mb-6">Recent Enrollments</h2>
           <div className="border border-border rounded-xl overflow-hidden">
-            {recentEnrollments && recentEnrollments.length > 0 ? (
+            {recentEnrollmentItems.length > 0 ? (
               <div className="divide-y divide-border">
-                {recentEnrollments.map((enrollment: any) => (
+                {recentEnrollmentItems.map((enrollment) => (
                   <div
                     key={enrollment.id}
                     className="flex items-center justify-between p-5 hover:bg-secondary/30 transition-colors"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-foreground text-background flex items-center justify-center text-sm font-semibold">
-                        {(enrollment.users?.full_name || enrollment.users?.email || "U")[0].toUpperCase()}
+                        {(enrollment.user?.full_name || enrollment.user?.email || "U")[0].toUpperCase()}
                       </div>
                       <div>
                         <p className="font-medium">
-                          {enrollment.users?.full_name || enrollment.users?.email}
+                          {enrollment.user?.full_name || enrollment.user?.email}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          Enrolled in {enrollment.courses?.title}
+                          Enrolled in {enrollment.course?.title}
                         </p>
                       </div>
                     </div>

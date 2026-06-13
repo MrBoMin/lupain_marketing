@@ -21,7 +21,7 @@ export default async function LessonPage({
   // Check enrollment is approved
   const { data: enrollment } = await supabase
     .from("enrollments")
-    .select("*")
+    .select("id, status")
     .eq("user_id", user.id)
     .eq("course_id", courseId)
     .single()
@@ -30,49 +30,43 @@ export default async function LessonPage({
     redirect(`/courses/${courseId}`)
   }
 
-  // Get course
-  const { data: course } = await supabase
-    .from("courses")
-    .select("*")
-    .eq("id", courseId)
-    .single()
+  const [
+    { data: course },
+    { data: chapters },
+    { data: allLessons },
+    { data: progressData },
+  ] = await Promise.all([
+    supabase
+      .from("courses")
+      .select("id, title")
+      .eq("id", courseId)
+      .single(),
+    supabase
+      .from("chapters")
+      .select("id, title, description, order")
+      .eq("course_id", courseId)
+      .order("order", { ascending: true }),
+    supabase
+      .from("lessons")
+      .select("id, chapter_id, title, description, lesson_type, vimeo_video_id, pdf_file_url, pdf_file_name, order, duration")
+      .eq("course_id", courseId)
+      .order("order", { ascending: true }),
+    supabase
+      .from("lesson_progress")
+      .select("lesson_id, completed, last_position, last_watched_at")
+      .eq("user_id", user.id)
+      .eq("course_id", courseId),
+  ])
 
   if (!course) {
     notFound()
   }
 
-  // Get current lesson
-  const { data: lesson } = await supabase
-    .from("lessons")
-    .select("*")
-    .eq("id", lessonId)
-    .eq("course_id", courseId)
-    .single()
+  const lesson = allLessons?.find((item) => item.id === lessonId)
 
   if (!lesson) {
     notFound()
   }
-
-  // Get all chapters
-  const { data: chapters } = await supabase
-    .from("chapters")
-    .select("*")
-    .eq("course_id", courseId)
-    .order("order", { ascending: true })
-
-  // Get all lessons for navigation
-  const { data: allLessons } = await supabase
-    .from("lessons")
-    .select("*")
-    .eq("course_id", courseId)
-    .order("order", { ascending: true })
-
-  // Get user's progress for all lessons
-  const { data: progressData } = await supabase
-    .from("lesson_progress")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("course_id", courseId)
 
   const progressMap = new Map(progressData?.map((p) => [p.lesson_id, p]) || [])
 

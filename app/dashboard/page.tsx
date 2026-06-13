@@ -6,7 +6,7 @@ import { getUser } from "@/app/actions/auth"
 import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { BookOpen, Clock, Play, ArrowRight } from "lucide-react"
+import { BookOpen, Play, ArrowRight } from "lucide-react"
 
 export default async function DashboardPage() {
   const user = await getUser()
@@ -21,42 +21,77 @@ export default async function DashboardPage() {
   const { data: enrollments } = await supabase
     .from("enrollments")
     .select(`
-      *,
-      courses (*)
+      id,
+      course_id,
+      status,
+      enrolled_at,
+      courses (
+        id,
+        title,
+        description,
+        thumbnail_url,
+        instructor_name
+      )
     `)
     .eq("user_id", user.id)
     .order("enrolled_at", { ascending: false })
 
-  // For each course, calculate progress
-  const coursesWithProgress = await Promise.all(
-    (enrollments || []).map(async (enrollment) => {
-      const course = enrollment.courses
+  const courseIds = (enrollments || [])
+    .map((enrollment) => enrollment.course_id)
+    .filter((courseId): courseId is string => Boolean(courseId))
 
-      // Get total lessons
-      const { count: totalLessons } = await supabase
-        .from("lessons")
-        .select("*", { count: "exact", head: true })
-        .eq("course_id", course.id)
+  const [{ data: lessons }, { data: completedProgress }] = courseIds.length > 0
+    ? await Promise.all([
+        supabase
+          .from("lessons")
+          .select("id, course_id")
+          .in("course_id", courseIds),
+        supabase
+          .from("lesson_progress")
+          .select("lesson_id, course_id")
+          .eq("user_id", user.id)
+          .eq("completed", true)
+          .in("course_id", courseIds),
+      ])
+    : [{ data: [] }, { data: [] }]
 
-      // Get completed lessons
-      const { count: completedLessons } = await supabase
-        .from("lesson_progress")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("course_id", course.id)
-        .eq("completed", true)
+  const totalLessonsByCourse = new Map<string, number>()
+  for (const lesson of lessons || []) {
+    totalLessonsByCourse.set(
+      lesson.course_id,
+      (totalLessonsByCourse.get(lesson.course_id) || 0) + 1
+    )
+  }
 
-      const progress = totalLessons ? Math.round((completedLessons! / totalLessons) * 100) : 0
+  const completedLessonsByCourse = new Map<string, number>()
+  for (const progress of completedProgress || []) {
+    completedLessonsByCourse.set(
+      progress.course_id,
+      (completedLessonsByCourse.get(progress.course_id) || 0) + 1
+    )
+  }
+
+  const coursesWithProgress = (enrollments || [])
+    .map((enrollment) => {
+      const course = Array.isArray(enrollment.courses)
+        ? enrollment.courses[0]
+        : enrollment.courses
+
+      if (!course) return null
+
+      const totalLessons = totalLessonsByCourse.get(course.id) || 0
+      const completedLessons = completedLessonsByCourse.get(course.id) || 0
+      const progress = totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0
 
       return {
         ...enrollment,
         course,
         progress,
-        totalLessons: totalLessons || 0,
-        completedLessons: completedLessons || 0,
+        totalLessons,
+        completedLessons,
       }
     })
-  )
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
 
   return (
     <div className="min-h-screen bg-background">

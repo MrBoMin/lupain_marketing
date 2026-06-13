@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getUser } from "@/app/actions/auth"
 import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
-import { Clock, BookOpen, ArrowRight, Play, Sparkles, Tag, Timer, Eye } from "lucide-react"
+import { Clock, BookOpen, ArrowRight, Play, Timer, Eye } from "lucide-react"
 import { BRAND_NAME } from "@/lib/brand"
 
 const formatPrice = (price: number, currency: string = 'MMK') => {
@@ -53,34 +53,51 @@ const formatViews = (views: number) => {
 }
 
 export default async function HomePage() {
-  const user = await getUser()
   const supabase = await createClient()
 
-  // Fetch courses with their lessons to calculate duration
-  const { data: courses } = await supabase
+  const userPromise = getUser()
+  const coursesPromise = supabase
     .from("courses")
     .select(`
-      *,
+      id,
+      title,
+      description,
+      thumbnail_url,
+      instructor_name,
+      category,
+      promo_tag,
+      promo_deadline,
+      price,
+      original_price,
+      currency,
+      created_at,
       lessons:lessons(duration)
     `)
     .eq("published", true)
     .order("created_at", { ascending: false })
 
-  // Fetch featured videos
-  const { data: featuredVideos } = await supabase
+  const featuredVideosPromise = supabase
     .from("free_videos")
-    .select("*")
+    .select("id, title, thumbnail_url, duration, view_count, order_index")
     .eq("published", true)
     .eq("is_featured", true)
     .order("order_index", { ascending: true })
     .limit(3)
+
+  const [user, { data: courses }, { data: featuredVideos }] = await Promise.all([
+    userPromise,
+    coursesPromise,
+    featuredVideosPromise,
+  ])
 
   // Calculate total duration for each course from lessons
   const coursesWithDuration = courses?.map(course => {
     const totalSeconds = course.lessons?.reduce((acc: number, lesson: { duration: number }) => acc + (lesson.duration || 0), 0) || 0
     return {
       ...course,
-      calculatedDuration: formatDuration(totalSeconds)
+      calculatedDuration: formatDuration(totalSeconds),
+      daysLeft: calculateDaysLeft(course.promo_deadline),
+      promoLabel: course.promo_tag ? getPromoLabel(course.promo_tag) : null,
     }
   })
 
@@ -119,7 +136,7 @@ export default async function HomePage() {
                 <>
                   <Button size="lg" asChild className="h-12 px-8 text-base">
                     <Link href="/signup">
-                      Start Learning — It's Free
+                      Start Learning — It&apos;s Free
                     </Link>
                   </Button>
                   <Button size="lg" variant="outline" asChild className="h-12 px-8 text-base">
@@ -245,20 +262,20 @@ export default async function HomePage() {
                         </div>
                       )}
                       {/* Promo Tag Badge */}
-                      {course.promo_tag && (
+                      {course.promoLabel && (
                         <div className="absolute top-3 left-3">
-                          <span className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg ${getPromoLabel(course.promo_tag).style}`}>
-                            {getPromoLabel(course.promo_tag).text}
+                          <span className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg ${course.promoLabel.style}`}>
+                            {course.promoLabel.text}
                           </span>
                         </div>
                       )}
 
                       {/* Deadline Badge */}
-                      {course.promo_deadline && calculateDaysLeft(course.promo_deadline) && (
+                      {course.daysLeft && (
                         <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-md text-white text-xs font-medium px-2.5 py-1 rounded-md flex items-center gap-1.5 border border-white/10">
                           <Timer className="h-3.5 w-3.5 text-amber-400" />
                           <span>
-                            {calculateDaysLeft(course.promo_deadline)} days left
+                            {course.daysLeft} days left
                           </span>
                         </div>
                       )}
@@ -339,7 +356,7 @@ export default async function HomePage() {
         <div className="container mx-auto max-w-6xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <img src="/logo.png" alt={BRAND_NAME} className="w-7 h-7 rounded-md object-cover" />
+              <Image src="/logo.png" alt={BRAND_NAME} width={28} height={28} className="w-7 h-7 rounded-md object-cover" />
               <span className="text-sm text-muted-foreground">{BRAND_NAME}</span>
             </div>
             <p className="text-sm text-muted-foreground">

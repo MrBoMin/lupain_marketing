@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getUser } from "@/app/actions/auth"
 import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
-import { Clock, BookOpen, CheckCircle2, PlayCircle, Loader2, AlertCircle, Sparkles } from "lucide-react"
+import { Clock, BookOpen, CheckCircle2, PlayCircle, Loader2, AlertCircle } from "lucide-react"
 import { CourseContentPreview } from "@/components/course-content-preview"
 import { PromotionBanner } from "@/components/promotion-banner"
 
@@ -21,6 +21,7 @@ interface Lesson {
   chapter_id: string | null
   title: string
   description: string | null
+  lesson_type?: "video" | "pdf"
   duration: number
   order: number
   vimeo_video_id: string
@@ -43,34 +44,67 @@ const getPromoLabel = (tag: string) => {
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
   const supabase = await createClient()
 
-  // Get course details
-  const { data: course } = await supabase
+  const userPromise = getUser()
+  const coursePromise = supabase
     .from("courses")
-    .select("*")
+    .select(`
+      id,
+      title,
+      description,
+      thumbnail_url,
+      instructor_name,
+      category,
+      promo_deadline,
+      promo_tag,
+      price,
+      original_price,
+      currency
+    `)
     .eq("id", id)
     .single()
+
+  const lessonsPromise = supabase
+    .from("lessons")
+    .select("id, chapter_id, title, description, lesson_type, duration, order, vimeo_video_id")
+    .eq("course_id", id)
+    .order("order", { ascending: true })
+
+  const chaptersPromise = supabase
+    .from("chapters")
+    .select("id, title, description, order")
+    .eq("course_id", id)
+    .order("order", { ascending: true })
+
+  const enrollmentPromise = userPromise.then(async (currentUser) => {
+    if (!currentUser) return { data: null }
+
+    return supabase
+      .from("enrollments")
+      .select("id, status")
+      .eq("user_id", currentUser.id)
+      .eq("course_id", id)
+      .maybeSingle()
+  })
+
+  const [
+    user,
+    { data: course },
+    { data: lessons },
+    { data: chapters },
+    { data: enrollment },
+  ] = await Promise.all([
+    userPromise,
+    coursePromise,
+    lessonsPromise,
+    chaptersPromise,
+    enrollmentPromise,
+  ])
 
   if (!course) {
     notFound()
   }
-
-  // Get lessons for this course
-  const { data: lessons } = await supabase
-    .from("lessons")
-    .select("*")
-    .eq("course_id", id)
-    .eq("course_id", id)
-    .order("order", { ascending: true })
-
-  // Get all chapters
-  const { data: chapters } = await supabase
-    .from("chapters")
-    .select("*")
-    .eq("course_id", id)
-    .order("order", { ascending: true })
 
   // Group lessons by chapter
   const chaptersWithLessons = (chapters || []).map((chapter: Chapter) => ({
@@ -88,25 +122,6 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
   const formattedTotalDuration = totalHours > 0
     ? `${totalHours}h ${totalMinutes}m`
     : `${totalMinutes} min`
-
-  // Check enrollment status
-  let enrollment: any = null
-  if (user) {
-    const { data } = await supabase
-      .from("enrollments")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("course_id", id)
-      .single()
-
-    enrollment = data
-  }
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, "0")}`
-  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -250,7 +265,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
                       <div className="space-y-4">
                         <div className="flex items-center gap-2 text-sm text-foreground">
                           <CheckCircle2 className="h-4 w-4" />
-                          <span>You're enrolled</span>
+                          <span>You&apos;re enrolled</span>
                         </div>
                         <Button className="w-full" asChild>
                           <Link href={`/dashboard/courses/${id}`}>

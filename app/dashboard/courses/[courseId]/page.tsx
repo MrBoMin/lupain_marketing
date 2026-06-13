@@ -6,7 +6,7 @@ import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Clock, CheckCircle2, Circle, ChevronLeft, ChevronDown, ChevronRight, FolderOpen } from "lucide-react"
+import { Clock, CheckCircle2, Circle, ChevronLeft, FolderOpen } from "lucide-react"
 
 interface Chapter {
   id: string
@@ -38,7 +38,7 @@ export default async function CourseViewerPage({ params }: { params: Promise<{ c
   // Check if user is enrolled and approved
   const { data: enrollment } = await supabase
     .from("enrollments")
-    .select("*")
+    .select("id, status")
     .eq("user_id", user.id)
     .eq("course_id", courseId)
     .single()
@@ -47,37 +47,37 @@ export default async function CourseViewerPage({ params }: { params: Promise<{ c
     redirect(`/courses/${courseId}`)
   }
 
-  // Get course details
-  const { data: course } = await supabase
-    .from("courses")
-    .select("*")
-    .eq("id", courseId)
-    .single()
+  const [
+    { data: course },
+    { data: chapters },
+    { data: lessons },
+    { data: progressData },
+  ] = await Promise.all([
+    supabase
+      .from("courses")
+      .select("id, title, description, instructor_name, category")
+      .eq("id", courseId)
+      .single(),
+    supabase
+      .from("chapters")
+      .select("id, title, description, order")
+      .eq("course_id", courseId)
+      .order("order", { ascending: true }),
+    supabase
+      .from("lessons")
+      .select("id, chapter_id, title, description, vimeo_video_id, order, duration")
+      .eq("course_id", courseId)
+      .order("order", { ascending: true }),
+    supabase
+      .from("lesson_progress")
+      .select("lesson_id, completed, last_watched_at")
+      .eq("user_id", user.id)
+      .eq("course_id", courseId),
+  ])
 
   if (!course) {
     notFound()
   }
-
-  // Get all chapters
-  const { data: chapters } = await supabase
-    .from("chapters")
-    .select("*")
-    .eq("course_id", courseId)
-    .order("order", { ascending: true })
-
-  // Get all lessons
-  const { data: lessons } = await supabase
-    .from("lessons")
-    .select("*")
-    .eq("course_id", courseId)
-    .order("order", { ascending: true })
-
-  // Get user's progress for all lessons
-  const { data: progressData } = await supabase
-    .from("lesson_progress")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("course_id", courseId)
 
   const progressMap = new Map(progressData?.map((p) => [p.lesson_id, p]) || [])
 
