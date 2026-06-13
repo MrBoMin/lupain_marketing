@@ -5,7 +5,12 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@/lib/supabase/client"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { 
   ChevronLeft, 
@@ -20,6 +25,8 @@ import {
   Pencil,
   AlertTriangle,
   ArrowRight,
+  Search,
+  PlayCircle,
 } from "lucide-react"
 import {
   createChapter,
@@ -53,6 +60,15 @@ interface Lesson {
   duration: number
 }
 
+interface VimeoVideoOption {
+  id: string
+  title: string
+  description: string
+  duration: number
+  thumbnail: string | null
+  link: string | null
+}
+
 export default function ManageLessonsPage({ params }: { params: Promise<{ id: string }> }) {
   const [courseId, setCourseId] = useState<string | null>(null)
   const [courseTitle, setCourseTitle] = useState("")
@@ -82,6 +98,12 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [savingLesson, setSavingLesson] = useState(false)
   const [fetchingInfo, setFetchingInfo] = useState(false)
+  const [showVimeoPicker, setShowVimeoPicker] = useState(false)
+  const [vimeoVideos, setVimeoVideos] = useState<VimeoVideoOption[]>([])
+  const [vimeoSearch, setVimeoSearch] = useState("")
+  const [vimeoPage, setVimeoPage] = useState(1)
+  const [vimeoHasNextPage, setVimeoHasNextPage] = useState(false)
+  const [loadingVimeoVideos, setLoadingVimeoVideos] = useState(false)
   
   // Move lesson modal
   const [movingLesson, setMovingLesson] = useState<Lesson | null>(null)
@@ -144,8 +166,6 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
     setSavingChapter(true)
 
     try {
-      const supabase = createClient()
-      
       if (editingChapter) {
         const result = await updateChapter(editingChapter.id, {
           title: chapterForm.title,
@@ -227,6 +247,54 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
     } finally {
       setFetchingInfo(false)
     }
+  }
+
+  const fetchVimeoVideos = async (page = 1, query = vimeoSearch) => {
+    setLoadingVimeoVideos(true)
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+      })
+
+      if (query.trim()) {
+        params.set("query", query.trim())
+      }
+
+      const response = await fetch(`/api/admin/vimeo/videos?${params.toString()}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        toast.error(data.error || "Failed to fetch Vimeo videos")
+        return
+      }
+
+      setVimeoVideos(data.videos || [])
+      setVimeoPage(data.page || page)
+      setVimeoHasNextPage(Boolean(data.hasNextPage))
+    } catch (error) {
+      toast.error("Failed to fetch Vimeo videos")
+    } finally {
+      setLoadingVimeoVideos(false)
+    }
+  }
+
+  const openVimeoPicker = () => {
+    setShowVimeoPicker(true)
+    if (vimeoVideos.length === 0) {
+      fetchVimeoVideos(1, "")
+    }
+  }
+
+  const selectVimeoVideo = (video: VimeoVideoOption) => {
+    setLessonForm({
+      ...lessonForm,
+      vimeo_video_id: video.id,
+      title: lessonForm.title || video.title,
+      description: lessonForm.description || video.description || "",
+      duration: video.duration?.toString() || lessonForm.duration,
+    })
+    setShowVimeoPicker(false)
+    toast.success("Vimeo video selected")
   }
 
   const handleEditLesson = (lesson: Lesson, chapterId: string) => {
@@ -652,7 +720,7 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
                           {lessonForm.lesson_type === "video" ? (
                             <div className="space-y-2">
                               <Label htmlFor="vimeo-id" className="text-xs">Vimeo Video ID *</Label>
-                              <div className="flex gap-2">
+                              <div className="flex flex-wrap gap-2">
                                 <Input
                                   id="vimeo-id"
                                   placeholder="123456789"
@@ -660,9 +728,19 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
                                   onChange={(e) =>
                                     setLessonForm({ ...lessonForm, vimeo_video_id: e.target.value })
                                   }
-                                  className="h-9 text-sm"
+                                  className="h-9 min-w-0 flex-1 text-sm"
                                   required={lessonForm.lesson_type === "video"}
                                 />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={openVimeoPicker}
+                                  className="gap-2"
+                                >
+                                  <PlayCircle className="h-3.5 w-3.5" />
+                                  Choose from Video
+                                </Button>
                                 <Button
                                   type="button"
                                   variant="outline"
@@ -810,6 +888,118 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
         )}
+
+        <Dialog open={showVimeoPicker} onOpenChange={setShowVimeoPicker}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Choose from Vimeo</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <form
+                className="flex gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  fetchVimeoVideos(1, vimeoSearch)
+                }}
+              >
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search Vimeo videos..."
+                    value={vimeoSearch}
+                    onChange={(event) => setVimeoSearch(event.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Button type="submit" variant="outline" disabled={loadingVimeoVideos}>
+                  {loadingVimeoVideos ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Search"
+                  )}
+                </Button>
+              </form>
+
+              <div className="max-h-[440px] overflow-y-auto rounded-lg border border-border">
+                {loadingVimeoVideos ? (
+                  <div className="flex h-48 items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : vimeoVideos.length > 0 ? (
+                  <div className="divide-y divide-border">
+                    {vimeoVideos.map((video) => (
+                      <button
+                        key={video.id}
+                        type="button"
+                        onClick={() => selectVimeoVideo(video)}
+                        className="flex w-full gap-4 p-3 text-left transition-colors hover:bg-muted/60"
+                      >
+                        <div className="relative flex h-20 w-32 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-secondary">
+                          {video.thumbnail ? (
+                            <img
+                              src={video.thumbnail}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <Video className="h-6 w-6 text-muted-foreground" />
+                          )}
+                          <div className="absolute bottom-1 right-1 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-medium text-white">
+                            {formatDuration(video.duration)}
+                          </div>
+                        </div>
+                        <div className="min-w-0 flex-1 py-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h3 className="truncate font-medium">{video.title}</h3>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Vimeo ID: {video.id}
+                              </p>
+                            </div>
+                          </div>
+                          {video.description && (
+                            <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+                              {video.description}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex h-48 flex-col items-center justify-center px-6 text-center">
+                    <Video className="mb-3 h-8 w-8 text-muted-foreground" />
+                    <h3 className="font-medium">No Vimeo videos found</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Try another search or check the Vimeo API token.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loadingVimeoVideos || vimeoPage <= 1}
+                  onClick={() => fetchVimeoVideos(vimeoPage - 1, vimeoSearch)}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">Page {vimeoPage}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loadingVimeoVideos || !vimeoHasNextPage}
+                  onClick={() => fetchVimeoVideos(vimeoPage + 1, vimeoSearch)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
