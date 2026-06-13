@@ -17,18 +17,21 @@ VALUES ('payment-screenshots', 'payment-screenshots', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage policy: Users can upload their own payment screenshots
+DROP POLICY IF EXISTS "Users can upload payment screenshots" ON storage.objects;
 CREATE POLICY "Users can upload payment screenshots"
 ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (bucket_id = 'payment-screenshots' AND auth.uid()::text = (storage.foldername(name))[1]);
 
 -- Storage policy: Users can view their own screenshots
+DROP POLICY IF EXISTS "Users can view own screenshots" ON storage.objects;
 CREATE POLICY "Users can view own screenshots"
 ON storage.objects FOR SELECT
 TO authenticated
 USING (bucket_id = 'payment-screenshots' AND auth.uid()::text = (storage.foldername(name))[1]);
 
 -- Storage policy: Admins can view all screenshots
+DROP POLICY IF EXISTS "Admins can view all screenshots" ON storage.objects;
 CREATE POLICY "Admins can view all screenshots"
 ON storage.objects FOR SELECT
 TO authenticated
@@ -48,10 +51,23 @@ CREATE POLICY "Users can view own enrollments"
 ON enrollments FOR SELECT
 USING (auth.uid() = user_id);
 
--- Users can create pending enrollments
+-- Users can create pending paid enrollments or approved free-course enrollments
 CREATE POLICY "Users can create enrollments"
 ON enrollments FOR INSERT
-WITH CHECK (auth.uid() = user_id AND status = 'pending');
+WITH CHECK (
+  auth.uid() = user_id
+  AND (
+    status = 'pending'
+    OR (
+      status = 'approved'
+      AND EXISTS (
+        SELECT 1 FROM courses
+        WHERE courses.id = enrollments.course_id
+        AND courses.price = 0
+      )
+    )
+  )
+);
 
 -- Admins can view all enrollments
 CREATE POLICY "Admins can view all enrollments"
@@ -88,9 +104,7 @@ CREATE POLICY "Admins can manage payment info"
 ON payment_info FOR ALL
 USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
--- Insert default payment info (update with your actual details)
+-- Insert placeholder payment info. Replace this in Admin > Settings.
 INSERT INTO payment_info (bank_name, account_name, account_number, additional_info)
-VALUES ('KBZ Bank', 'Bo Bo Min', '1234567890', 'Please include your email in the transfer note')
+VALUES ('Bank Name', 'Account Holder', 'Account Number', 'Replace this with your real payment instructions before accepting paid enrollments.')
 ON CONFLICT DO NOTHING;
-
-

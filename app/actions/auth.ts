@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export async function logout() {
   const supabase = await createClient()
@@ -19,7 +20,8 @@ export async function getUser() {
 
   if (!user) return null
 
-  const { data: profile } = await supabase
+  const adminSupabase = createAdminClient()
+  const { data: profile } = await adminSupabase
     .from("users")
     .select("*")
     .eq("id", user.id)

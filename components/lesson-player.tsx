@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { createClient } from "@/lib/supabase/client"
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, List, FolderOpen } from "lucide-react"
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, List, FolderOpen, FileText, Video, ExternalLink, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { LessonComments } from "@/components/lesson-comments"
 import { MessageCircle } from "lucide-react"
@@ -26,7 +26,10 @@ interface Lesson {
   chapter_id: string | null
   title: string
   description: string | null
-  vimeo_video_id: string
+  lesson_type: "video" | "pdf"
+  vimeo_video_id: string | null
+  pdf_file_url: string | null
+  pdf_file_name: string | null
   order: number
   duration: number
 }
@@ -58,6 +61,8 @@ export function LessonPlayer({
   const [isCompleted, setIsCompleted] = useState(currentProgress?.completed || false)
   const [lastPosition, setLastPosition] = useState(currentProgress?.last_position || 0)
   const [isSaving, setIsSaving] = useState(false)
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   const progressMap = new Map(progressData.map((p) => [p.lesson_id, p]))
 
@@ -165,9 +170,16 @@ export function LessonPlayer({
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium truncate">{l.title}</div>
+            <div className="flex items-center gap-2">
+              {(l.lesson_type || "video") === "pdf" ? (
+                <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              ) : (
+                <Video className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              )}
+              <div className="text-sm font-medium truncate">{l.title}</div>
+            </div>
             <div className="text-xs text-muted-foreground">
-              {Math.floor(l.duration / 60)}:{String(l.duration % 60).padStart(2, "0")}
+              {(l.lesson_type || "video") === "pdf" ? "PDF" : `${Math.floor(l.duration / 60)}:${String(l.duration % 60).padStart(2, "0")}`}
             </div>
           </div>
           {completed && (
@@ -177,6 +189,36 @@ export function LessonPlayer({
       </Link>
     )
   }
+
+  useEffect(() => {
+    const loadPdf = async () => {
+      if ((lesson.lesson_type || "video") !== "pdf" || !lesson.pdf_file_url) {
+        setPdfViewerUrl(null)
+        return
+      }
+
+      if (lesson.pdf_file_url.startsWith("http")) {
+        setPdfViewerUrl(lesson.pdf_file_url)
+        return
+      }
+
+      setPdfLoading(true)
+      const supabase = createClient()
+      const { data, error } = await supabase.storage
+        .from("lesson-pdfs")
+        .createSignedUrl(lesson.pdf_file_url, 60 * 60)
+
+      if (error) {
+        toast.error("Unable to load PDF lesson")
+        setPdfViewerUrl(null)
+      } else {
+        setPdfViewerUrl(data.signedUrl)
+      }
+      setPdfLoading(false)
+    }
+
+    loadPdf()
+  }, [lesson.lesson_type, lesson.pdf_file_url])
 
   return (
     <div className="container mx-auto max-w-7xl px-4 py-6">
@@ -218,14 +260,51 @@ export function LessonPlayer({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Video Player */}
+        {/* Lesson Content */}
         <div className="lg:col-span-2 space-y-6">
-          <VimeoPlayer
-            videoId={lesson.vimeo_video_id}
-            onTimeUpdate={handleTimeUpdate}
-            onEnded={handleVideoEnded}
-            startTime={lastPosition}
-          />
+          {(lesson.lesson_type || "video") === "pdf" ? (
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="text-sm font-medium truncate">
+                    {lesson.pdf_file_name || lesson.title}
+                  </span>
+                </div>
+                {pdfViewerUrl && (
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={pdfViewerUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Open
+                    </a>
+                  </Button>
+                )}
+              </div>
+              {pdfLoading ? (
+                <div className="flex aspect-video items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : pdfViewerUrl ? (
+                <iframe
+                  src={pdfViewerUrl}
+                  title={lesson.title}
+                  className="h-[72vh] min-h-[520px] w-full bg-background"
+                />
+              ) : (
+                <div className="flex aspect-video flex-col items-center justify-center gap-3 text-muted-foreground">
+                  <FileText className="h-10 w-10" />
+                  <p className="text-sm">PDF file is not available.</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <VimeoPlayer
+              videoId={lesson.vimeo_video_id || ""}
+              onTimeUpdate={handleTimeUpdate}
+              onEnded={handleVideoEnded}
+              startTime={lastPosition}
+            />
+          )}
 
           {/* Navigation */}
           <div className="flex items-center justify-between">

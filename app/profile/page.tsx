@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { User } from "lucide-react"
+import { getInitials } from "@/lib/user-display"
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null)
@@ -32,11 +33,18 @@ export default function ProfilePage() {
 
       const { data: profile } = await supabase.from("users").select("*").eq("id", authUser.id).single()
 
-      if (profile) {
-        setUser(profile)
-        setFullName(profile.full_name || "")
-        setEmail(profile.email)
+      const profileUser = profile || {
+        id: authUser.id,
+        email: authUser.email || "",
+        full_name: authUser.user_metadata?.full_name || null,
+        avatar_url: authUser.user_metadata?.avatar_url || null,
+        role: "user",
+        created_at: authUser.created_at,
       }
+
+      setUser(profileUser)
+      setFullName(profileUser.full_name || "")
+      setEmail(profileUser.email || "")
 
       setLoading(false)
     }
@@ -79,17 +87,6 @@ export default function ProfilePage() {
         </div>
       </div>
     )
-  }
-
-  const getInitials = (name: string | null, email: string) => {
-    if (name) {
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-    }
-    return email[0].toUpperCase()
   }
 
   return (

@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { Analytics } from "@vercel/analytics/next";
+import { BRAND_DESCRIPTION, BRAND_NAME } from "@/lib/brand";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -18,8 +19,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Luu Pain Marketing",
-  description: "Master marketing with expert-led video courses by Miro",
+  title: BRAND_NAME,
+  description: BRAND_DESCRIPTION,
 };
 
 export default function RootLayout({

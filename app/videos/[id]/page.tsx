@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar"
 import { VideoPlayerWithTracking } from "./video-player"
 import { ArrowLeft, Eye, Clock, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { BRAND_NAME } from "@/lib/brand"
 
 // Helper to format duration from seconds
 const formatDuration = (totalSeconds: number) => {
@@ -158,11 +159,11 @@ export default async function VideoPage({
         <div className="container mx-auto max-w-6xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="Luu Pain Marketing" className="w-7 h-7 rounded-md object-cover" />
-              <span className="text-sm text-muted-foreground">Luu Pain Marketing</span>
+              <img src="/logo.png" alt={BRAND_NAME} className="w-7 h-7 rounded-md object-cover" />
+              <span className="text-sm text-muted-foreground">{BRAND_NAME}</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} Luu Pain Marketing
+              © {new Date().getFullYear()} {BRAND_NAME}
             </p>
           </div>
         </div>

@@ -19,6 +19,14 @@ interface Course {
   currency: string
 }
 
+interface PaymentInfo {
+  id: string
+  bank_name: string
+  account_name: string
+  account_number: string
+  additional_info: string | null
+}
+
 export default function EnrollPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const [courseId, setCourseId] = useState<string | null>(null)
@@ -31,6 +39,7 @@ export default function EnrollPage({ params }: { params: Promise<{ id: string }>
   const [note, setNote] = useState("")
   const [user, setUser] = useState<any>(null)
   const [existingEnrollment, setExistingEnrollment] = useState<any>(null)
+  const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null)
 
   useEffect(() => {
     params.then((p) => {
@@ -71,6 +80,16 @@ export default function EnrollPage({ params }: { params: Promise<{ id: string }>
 
     if (courseData) {
       setCourse(courseData)
+    }
+
+    const { data: paymentData } = await supabase
+      .from("payment_info")
+      .select("id, bank_name, account_name, account_number, additional_info")
+      .eq("is_active", true)
+      .single()
+
+    if (paymentData) {
+      setPaymentInfo(paymentData)
     }
 
     setLoading(false)
@@ -115,7 +134,7 @@ export default function EnrollPage({ params }: { params: Promise<{ id: string }>
     try {
       const supabase = createClient()
 
-      let screenshotUrl = null
+      let screenshotPath = null
 
       // Upload screenshot only for paid courses
       if (file) {
@@ -130,11 +149,7 @@ export default function EnrollPage({ params }: { params: Promise<{ id: string }>
           throw new Error("Failed to upload screenshot")
         }
 
-        const { data: { publicUrl } } = supabase.storage
-          .from("payment-screenshots")
-          .getPublicUrl(fileName)
-
-        screenshotUrl = publicUrl
+        screenshotPath = fileName
       }
 
       // Create enrollment request
@@ -144,7 +159,7 @@ export default function EnrollPage({ params }: { params: Promise<{ id: string }>
           user_id: user.id,
           course_id: courseId,
           status: isFree ? "approved" : "pending", // Auto-approve free courses
-          payment_screenshot_url: screenshotUrl,
+          payment_screenshot_url: screenshotPath,
           user_note: note || null,
         })
 
@@ -283,41 +298,47 @@ export default function EnrollPage({ params }: { params: Promise<{ id: string }>
               </div>
             </div>
 
-            <div className="space-y-3">
-              {[
-                { name: "KBZ Pay", number: "09955214464", holder: "Bo Bo Min" },
-                { name: "Wave Pay", number: "09955214464", holder: "Bo Bo Min" },
-                { name: "AYA Pay", number: "09955214464", holder: "Bo Bo Min" },
-                { name: "UAB Pay", number: "09955214464", holder: "Bo Bo Min" },
-              ].map((method) => (
+            {paymentInfo ? (
+              <div className="space-y-3">
                 <div
-                  key={method.name}
                   className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg hover:bg-secondary/70 transition-colors"
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-lg bg-foreground/10 flex items-center justify-center font-bold text-sm">
-                      {method.name.charAt(0)}
+                      {paymentInfo.bank_name.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-medium">{method.name}</p>
-                      <p className="text-sm text-muted-foreground">{method.holder}</p>
+                      <p className="font-medium">{paymentInfo.bank_name}</p>
+                      <p className="text-sm text-muted-foreground">{paymentInfo.account_name}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm">{method.number}</span>
+                    <span className="font-mono text-sm">{paymentInfo.account_number}</span>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => copyToClipboard(method.number)}
+                      onClick={() => copyToClipboard(paymentInfo.account_number)}
                       className="h-8 w-8 p-0"
                     >
                       {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                {paymentInfo.additional_info && (
+                  <div className="p-4 bg-secondary/30 rounded-lg">
+                    <p className="text-sm text-muted-foreground">{paymentInfo.additional_info}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 bg-secondary/30 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  Payment information is not configured yet. Please contact support before sending payment.
+                </p>
+              </div>
+            )}
 
             <div className="mt-4 p-4 bg-secondary/30 rounded-lg">
               <p className="text-sm text-muted-foreground">
@@ -416,4 +437,3 @@ export default function EnrollPage({ params }: { params: Promise<{ id: string }>
     </div>
   )
 }
-

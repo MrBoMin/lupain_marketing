@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ChevronLeft, UserCog, Shield } from "lucide-react"
+import { getInitials } from "@/lib/user-display"
 
 export default async function AdminUsersPage() {
   const user = await getUser()
@@ -51,13 +52,7 @@ export default async function AdminUsersPage() {
                     <div className="flex items-center gap-4">
                       <Avatar>
                         <AvatarFallback>
-                          {u.full_name
-                            ? u.full_name
-                                .split(" ")
-                                .map((n: string) => n[0])
-                                .join("")
-                                .toUpperCase()
-                            : u.email[0].toUpperCase()}
+                          {getInitials(u.full_name, u.email)}
                         </AvatarFallback>
                       </Avatar>
                       <div>

@@ -35,7 +35,10 @@ CREATE TABLE lessons (
   course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
-  vimeo_video_id TEXT NOT NULL,
+  lesson_type TEXT DEFAULT 'video' CHECK (lesson_type IN ('video', 'pdf')),
+  vimeo_video_id TEXT,
+  pdf_file_url TEXT,
+  pdf_file_name TEXT,
   "order" INTEGER NOT NULL,
   duration INTEGER NOT NULL DEFAULT 0, -- in seconds
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -374,6 +377,11 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('payment-screenshots', 'payment-screenshots', false)
 ON CONFLICT (id) DO NOTHING;
 
+-- 3. Create bucket for PDF lesson files (private - only enrolled students/admins can view)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('lesson-pdfs', 'lesson-pdfs', false)
+ON CONFLICT (id) DO NOTHING;
+
 -- Storage policy: Users can upload their own payment screenshots
 CREATE POLICY "Users can upload payment screenshots"
 ON storage.objects FOR INSERT
@@ -406,10 +414,23 @@ CREATE POLICY "Users can view own enrollments"
 ON enrollments FOR SELECT
 USING (auth.uid() = user_id);
 
--- Users can create pending enrollments
+-- Users can create pending paid enrollments or approved free-course enrollments
 CREATE POLICY "Users can create enrollments"
 ON enrollments FOR INSERT
-WITH CHECK (auth.uid() = user_id AND status = 'pending');
+WITH CHECK (
+  auth.uid() = user_id
+  AND (
+    status = 'pending'
+    OR (
+      status = 'approved'
+      AND EXISTS (
+        SELECT 1 FROM courses
+        WHERE courses.id = enrollments.course_id
+        AND courses.price = 0
+      )
+    )
+  )
+);
 
 -- Admins can view all enrollments
 CREATE POLICY "Admins can view all enrollments"
@@ -446,9 +467,9 @@ CREATE POLICY "Admins can manage payment info"
 ON payment_info FOR ALL
 USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
 
--- Insert default payment info (update with your actual details)
+-- Insert placeholder payment info. Replace this in Admin > Settings.
 INSERT INTO payment_info (bank_name, account_name, account_number, additional_info)
-VALUES ('KBZ Bank', 'Bo Bo Min', '1234567890', 'Please include your email in the transfer note')
+VALUES ('Bank Name', 'Account Holder', 'Account Number', 'Replace this with your real payment instructions before accepting paid enrollments.')
 ON CONFLICT DO NOTHING;
 
 
@@ -568,9 +589,9 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('course-thumbnails', 'course-thumbnails', true)
 ON CONFLICT (id) DO NOTHING;
 
--- 2. Create bucket for payment screenshots (public for simplicity)
+-- 2. Create bucket for payment screenshots (private because payment proof is sensitive)
 INSERT INTO storage.buckets (id, name, public) 
-VALUES ('payment-screenshots', 'payment-screenshots', true)
+VALUES ('payment-screenshots', 'payment-screenshots', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage Policies for course-thumbnails
@@ -614,12 +635,71 @@ USING (bucket_id = 'course-thumbnails');
 CREATE POLICY "Users can upload payment screenshots"
 ON storage.objects FOR INSERT
 TO authenticated
-WITH CHECK (bucket_id = 'payment-screenshots');
+WITH CHECK (
+  bucket_id = 'payment-screenshots'
+  AND auth.uid()::text = (storage.foldername(name))[1]
+);
 
--- Allow anyone to view payment screenshots (for admin review)
-CREATE POLICY "Anyone can view payment screenshots"
+-- Allow users to view their own payment screenshots
+CREATE POLICY "Users can view own payment screenshots"
 ON storage.objects FOR SELECT
-TO public
-USING (bucket_id = 'payment-screenshots');
+TO authenticated
+USING (
+  bucket_id = 'payment-screenshots'
+  AND auth.uid()::text = (storage.foldername(name))[1]
+);
 
+-- Allow admins to view all payment screenshots
+CREATE POLICY "Admins can view all payment screenshots"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'payment-screenshots'
+  AND EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+);
 
+-- Storage Policies for lesson-pdfs
+
+DROP POLICY IF EXISTS "Admins can upload lesson PDFs" ON storage.objects;
+CREATE POLICY "Admins can upload lesson PDFs"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'lesson-pdfs'
+  AND EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+);
+
+DROP POLICY IF EXISTS "Admins can update lesson PDFs" ON storage.objects;
+CREATE POLICY "Admins can update lesson PDFs"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'lesson-pdfs'
+  AND EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+);
+
+DROP POLICY IF EXISTS "Admins can delete lesson PDFs" ON storage.objects;
+CREATE POLICY "Admins can delete lesson PDFs"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'lesson-pdfs'
+  AND EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+);
+
+DROP POLICY IF EXISTS "Enrolled users can view lesson PDFs" ON storage.objects;
+CREATE POLICY "Enrolled users can view lesson PDFs"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'lesson-pdfs'
+  AND (
+    EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+    OR EXISTS (
+      SELECT 1 FROM public.enrollments
+      WHERE enrollments.user_id = auth.uid()
+      AND enrollments.course_id::text = (storage.foldername(name))[1]
+      AND enrollments.status = 'approved'
+    )
+  )
+);

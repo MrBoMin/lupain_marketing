@@ -16,6 +16,16 @@ export async function updateEnrollmentStatus(
     return { error: "Not authenticated" }
   }
 
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+
+  if (profile?.role !== "admin") {
+    return { error: "Not authorized" }
+  }
+
   // Get enrollment details with user and course info
   const { data: enrollment } = await supabase
     .from("enrollments")

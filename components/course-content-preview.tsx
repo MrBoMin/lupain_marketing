@@ -1,12 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, ChevronRight, Clock, Lock } from "lucide-react"
+import { ChevronDown, ChevronRight, Clock, FileText, Lock } from "lucide-react"
 
 interface Lesson {
     id: string
     title: string
     description: string | null
+    lesson_type?: "video" | "pdf"
     duration: number
     order: number
 }
@@ -75,7 +76,7 @@ export function CourseContentPreview({ chapters, unassignedLessons }: CourseCont
                             )}
                         </div>
                         <span className="text-sm text-muted-foreground">
-                            {formatDuration(lesson.duration)}
+                            {(lesson.lesson_type || "video") === "pdf" ? "PDF" : formatDuration(lesson.duration)}
                         </span>
                     </div>
                 ))}
@@ -131,8 +132,12 @@ export function CourseContentPreview({ chapters, unassignedLessons }: CourseCont
                                             <h4 className="text-sm font-medium truncate">{lesson.title}</h4>
                                         </div>
                                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                            <Clock className="h-3 w-3" />
-                                            <span>{formatDuration(lesson.duration)}</span>
+                                            {(lesson.lesson_type || "video") === "pdf" ? (
+                                                <FileText className="h-3 w-3" />
+                                            ) : (
+                                                <Clock className="h-3 w-3" />
+                                            )}
+                                            <span>{(lesson.lesson_type || "video") === "pdf" ? "PDF" : formatDuration(lesson.duration)}</span>
                                         </div>
                                     </div>
                                 ))}

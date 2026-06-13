@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer"
+import { BRAND_COLOR, BRAND_NAME } from "@/lib/brand"
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -8,9 +9,7 @@ const transporter = nodemailer.createTransport({
   },
 })
 
-const BRAND_NAME = "Luu Pain Marketing"
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
-const BRAND_COLOR = "#EAB308"
 
 interface SendEmailOptions {
   to: string

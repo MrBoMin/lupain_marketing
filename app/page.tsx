@@ -5,6 +5,7 @@ import { getUser } from "@/app/actions/auth"
 import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
 import { Clock, BookOpen, ArrowRight, Play, Sparkles, Tag, Timer, Eye } from "lucide-react"
+import { BRAND_NAME } from "@/lib/brand"
 
 const formatPrice = (price: number, currency: string = 'MMK') => {
   return new Intl.NumberFormat('en-US').format(price) + ' ' + currency
@@ -103,7 +104,7 @@ export default async function HomePage() {
             </h1>
 
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Master marketing through hands-on video courses. Learn at your own pace with expert-led content from Miro.
+              Learn through hands-on video courses at your own pace with practical, expert-led content.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
@@ -338,11 +339,11 @@ export default async function HomePage() {
         <div className="container mx-auto max-w-6xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="Luu Pain Marketing" className="w-7 h-7 rounded-md object-cover" />
-              <span className="text-sm text-muted-foreground">Luu Pain Marketing</span>
+              <img src="/logo.png" alt={BRAND_NAME} className="w-7 h-7 rounded-md object-cover" />
+              <span className="text-sm text-muted-foreground">{BRAND_NAME}</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} Luu Pain Marketing
+              © {new Date().getFullYear()} {BRAND_NAME}
             </p>
           </div>
         </div>

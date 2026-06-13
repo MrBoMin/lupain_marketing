@@ -1,4 +1,4 @@
-# Luu Pain Marketing - Learning Management System
+# White Label Learning Management System
 
 A modern, full-featured Learning Management System built with Next.js, Supabase, and Vimeo for video hosting. This platform enables instructors to create and manage video courses while students can enroll, track progress, and learn at their own pace.
 
@@ -50,12 +50,9 @@ A modern, full-featured Learning Management System built with Next.js, Supabase,
 
 ## Installation & Setup
 
-### 1. Clone the Repository
+### 1. Prepare the Project
 
-```bash
-git clone https://github.com/MrBoMin/luupaingmarketing.git
-cd luupaingmarketing
-```
+Use this folder as the project source. If you are handing this to a new owner, copy the folder and connect it to their own Git repository or deployment provider account.
 
 ### 2. Install Dependencies
 
@@ -63,11 +60,11 @@ cd luupaingmarketing
 npm install
 ```
 
-### 3. Set Up Supabase
+### 3. Set Up a Fresh Supabase Project
 
 1. Create a new project at [supabase.com](https://supabase.com)
 2. Go to Project Settings > API
-3. Copy your project URL and anon/public key
+3. Copy the project URL, publishable key, anon/public key, service role key, and database password
 4. Go to SQL Editor and run the SQL files from `supabase/` in this order:
    - `schema.sql` (core tables)
    - `chapters.sql` (chapter support)
@@ -76,6 +73,11 @@ npm install
    - `enrollment_workflow.sql` (enrollment approval flow)
    - `free_videos.sql` (free tutorial videos)
    - `storage_buckets.sql` (file storage)
+   - `pdf_lessons.sql` (PDF lesson support)
+5. Go to Authentication > URL Configuration and add your local and production URLs
+6. Sign up for the first user in the app, then change that user's `role` in the `users` table from `user` to `admin`
+
+Do not reuse another owner's Supabase project. Each white-label customer should have their own Supabase database, auth users, storage buckets, and service role key.
 
 ### 4. Configure Environment Variables
 
@@ -83,13 +85,21 @@ Create a `.env.local` file:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+SUPABASE_DB_PASSWORD=your_supabase_database_password
 VIMEO_ACCESS_TOKEN=your_vimeo_access_token
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
+NEXT_PUBLIC_BRAND_NAME=Your Academy Name
+NEXT_PUBLIC_BRAND_DESCRIPTION=Learn practical skills through expert-led video courses.
+BRAND_NAME=Your Academy Name
+BRAND_COLOR=#EAB308
 GMAIL_USER=your_gmail@gmail.com
 GMAIL_APP_PASSWORD=your_gmail_app_password
 ```
+
+After signing in as admin, go to `/admin/settings` and replace the placeholder payment account before accepting paid enrollments.
 
 ### 5. Run the Development Server
 
@@ -109,7 +119,7 @@ Open [http://localhost:3000](http://localhost:3000) to see your application.
 ## Project Structure
 
 ```
-luupaingmarketing/
+white-label-lms/
 ├── app/
 │   ├── (auth)/          # Authentication pages
 │   ├── actions/         # Server actions
@@ -137,7 +147,7 @@ luupaingmarketing/
 
 ## Deployment to Vercel
 
-1. Push to GitHub
+1. Push the project to the new owner's Git provider account
 2. Go to [vercel.com](https://vercel.com) and import the repository
 3. Add all environment variables from `.env.local`
 4. Deploy

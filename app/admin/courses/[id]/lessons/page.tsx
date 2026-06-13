@@ -12,6 +12,7 @@ import {
   Plus, 
   Trash2, 
   Video, 
+  FileText,
   Loader2, 
   FolderPlus,
   ChevronDown,
@@ -20,6 +21,16 @@ import {
   AlertTriangle,
   ArrowRight,
 } from "lucide-react"
+import {
+  createChapter,
+  createLesson,
+  deleteChapter,
+  deleteLesson,
+  getCourseContent,
+  moveLesson,
+  updateChapter,
+  updateLesson,
+} from "./actions"
 
 interface Chapter {
   id: string
@@ -34,7 +45,10 @@ interface Lesson {
   chapter_id: string | null
   title: string
   description: string | null
-  vimeo_video_id: string
+  lesson_type: "video" | "pdf"
+  vimeo_video_id: string | null
+  pdf_file_url: string | null
+  pdf_file_name: string | null
   order: number
   duration: number
 }
@@ -57,11 +71,15 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
   const [addingLessonToChapter, setAddingLessonToChapter] = useState<string | null>(null)
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null)
   const [lessonForm, setLessonForm] = useState({
+    lesson_type: "video" as "video" | "pdf",
     title: "",
     description: "",
     vimeo_video_id: "",
+    pdf_file_url: "",
+    pdf_file_name: "",
     duration: "",
   })
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [savingLesson, setSavingLesson] = useState(false)
   const [fetchingInfo, setFetchingInfo] = useState(false)
   
@@ -76,30 +94,18 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
   }, [params])
 
   const fetchData = async (id: string) => {
-    const supabase = createClient()
+    setLoading(true)
+    const result = await getCourseContent(id)
 
-    // Fetch course
-    const { data: course } = await supabase
-      .from("courses")
-      .select("title")
-      .eq("id", id)
-      .single()
+    if (result.error || !result.course) {
+      toast.error(result.error || "Failed to fetch course content")
+      setLoading(false)
+      return
+    }
 
-    if (course) setCourseTitle(course.title)
-
-    // Fetch chapters
-    const { data: chaptersData } = await supabase
-      .from("chapters")
-      .select("*")
-      .eq("course_id", id)
-      .order("order", { ascending: true })
-
-    // Fetch all lessons
-    const { data: lessonsData } = await supabase
-      .from("lessons")
-      .select("*")
-      .eq("course_id", id)
-      .order("order", { ascending: true })
+    setCourseTitle(result.course.title)
+    const chaptersData = result.chapters || []
+    const lessonsData = result.lessons || []
 
     // Group lessons by chapter
     const chaptersWithLessons: Chapter[] = (chaptersData || []).map((chapter) => ({
@@ -141,25 +147,22 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
       const supabase = createClient()
       
       if (editingChapter) {
-        const { error } = await supabase
-          .from("chapters")
-          .update({
-            title: chapterForm.title,
-            description: chapterForm.description || null,
-          })
-          .eq("id", editingChapter.id)
+        const result = await updateChapter(editingChapter.id, {
+          title: chapterForm.title,
+          description: chapterForm.description || null,
+        })
 
-        if (error) throw error
+        if (result.error) throw new Error(result.error)
         toast.success("Chapter updated")
       } else {
-        const { error } = await supabase.from("chapters").insert({
+        const result = await createChapter({
           course_id: courseId,
           title: chapterForm.title,
           description: chapterForm.description || null,
           order: chapters.length + 1,
         })
 
-        if (error) throw error
+        if (result.error) throw new Error(result.error)
         toast.success("Chapter created")
       }
 
@@ -168,7 +171,8 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
       setEditingChapter(null)
       fetchData(courseId)
     } catch (error) {
-      toast.error("Failed to save chapter")
+      const message = error instanceof Error ? error.message : "Failed to save chapter"
+      toast.error(message)
     } finally {
       setSavingChapter(false)
     }
@@ -185,9 +189,8 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
     if (!courseId) return
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from("chapters").delete().eq("id", chapterId)
-      if (error) throw error
+      const result = await deleteChapter(chapterId)
+      if (result.error) throw new Error(result.error)
       toast.success("Chapter deleted")
       fetchData(courseId)
     } catch (error) {
@@ -230,58 +233,91 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
     setEditingLesson(lesson)
     setAddingLessonToChapter(chapterId)
     setLessonForm({
+      lesson_type: lesson.lesson_type || "video",
       title: lesson.title,
       description: lesson.description || "",
-      vimeo_video_id: lesson.vimeo_video_id,
+      vimeo_video_id: lesson.vimeo_video_id || "",
+      pdf_file_url: lesson.pdf_file_url || "",
+      pdf_file_name: lesson.pdf_file_name || "",
       duration: lesson.duration.toString(),
     })
+    setPdfFile(null)
   }
 
   const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!courseId || !addingLessonToChapter) return
+    if (lessonForm.lesson_type === "video" && !lessonForm.vimeo_video_id.trim()) {
+      toast.error("Please enter a Vimeo Video ID")
+      return
+    }
+    if (lessonForm.lesson_type === "pdf" && !pdfFile && !lessonForm.pdf_file_url) {
+      toast.error("Please upload a PDF file")
+      return
+    }
     setSavingLesson(true)
 
     try {
-      const supabase = createClient()
+      let pdfFileUrl = lessonForm.pdf_file_url || null
+      let pdfFileName = lessonForm.pdf_file_name || null
+
+      if (lessonForm.lesson_type === "pdf" && pdfFile) {
+        const uploadForm = new FormData()
+        uploadForm.append("courseId", courseId)
+        uploadForm.append("file", pdfFile)
+
+        const response = await fetch("/api/admin/lesson-pdfs", {
+          method: "POST",
+          body: uploadForm,
+        })
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to upload PDF")
+        }
+
+        pdfFileUrl = data.filePath
+        pdfFileName = data.fileName
+      }
+
+      const lessonPayload = {
+        title: lessonForm.title,
+        description: lessonForm.description || null,
+        lesson_type: lessonForm.lesson_type,
+        vimeo_video_id: lessonForm.lesson_type === "video" ? lessonForm.vimeo_video_id : null,
+        pdf_file_url: lessonForm.lesson_type === "pdf" ? pdfFileUrl : null,
+        pdf_file_name: lessonForm.lesson_type === "pdf" ? pdfFileName : null,
+        duration: parseInt(lessonForm.duration) || 0,
+      }
 
       if (editingLesson) {
-        const { error } = await supabase
-          .from("lessons")
-          .update({
-            title: lessonForm.title,
-            description: lessonForm.description || null,
-            vimeo_video_id: lessonForm.vimeo_video_id,
-            duration: parseInt(lessonForm.duration) || 0,
-          })
-          .eq("id", editingLesson.id)
+        const result = await updateLesson(editingLesson.id, lessonPayload)
 
-        if (error) throw error
+        if (result.error) throw new Error(result.error)
         toast.success("Lesson updated")
       } else {
         const chapter = chapters.find((c) => c.id === addingLessonToChapter)
         const lessonOrder = chapter ? chapter.lessons.length + 1 : 1
 
-        const { error } = await supabase.from("lessons").insert({
+        const result = await createLesson({
           course_id: courseId,
           chapter_id: addingLessonToChapter,
-          title: lessonForm.title,
-          description: lessonForm.description || null,
-          vimeo_video_id: lessonForm.vimeo_video_id,
-          duration: parseInt(lessonForm.duration) || 0,
+          ...lessonPayload,
           order: lessonOrder,
         })
 
-        if (error) throw error
+        if (result.error) throw new Error(result.error)
         toast.success("Lesson added")
       }
 
-      setLessonForm({ title: "", description: "", vimeo_video_id: "", duration: "" })
+      setLessonForm({ lesson_type: "video", title: "", description: "", vimeo_video_id: "", pdf_file_url: "", pdf_file_name: "", duration: "" })
+      setPdfFile(null)
       setAddingLessonToChapter(null)
       setEditingLesson(null)
       fetchData(courseId)
     } catch (error) {
-      toast.error("Failed to save lesson")
+      const message = error instanceof Error ? error.message : "Failed to save lesson"
+      toast.error(message)
     } finally {
       setSavingLesson(false)
     }
@@ -292,9 +328,8 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
     if (!courseId) return
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from("lessons").delete().eq("id", lessonId)
-      if (error) throw error
+      const result = await deleteLesson(lessonId)
+      if (result.error) throw new Error(result.error)
       toast.success("Lesson deleted")
       fetchData(courseId)
     } catch (error) {
@@ -306,19 +341,11 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
     if (!courseId) return
 
     try {
-      const supabase = createClient()
       const targetChapter = chapters.find(c => c.id === targetChapterId)
       const newOrder = targetChapter ? targetChapter.lessons.length + 1 : 1
 
-      const { error } = await supabase
-        .from("lessons")
-        .update({ 
-          chapter_id: targetChapterId,
-          order: newOrder
-        })
-        .eq("id", lessonId)
-
-      if (error) throw error
+      const result = await moveLesson(lessonId, targetChapterId, newOrder)
+      if (result.error) throw new Error(result.error)
       toast.success("Lesson moved to chapter")
       setMovingLesson(null)
       fetchData(courseId)
@@ -330,7 +357,8 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
   const cancelLessonForm = () => {
     setAddingLessonToChapter(null)
     setEditingLesson(null)
-    setLessonForm({ title: "", description: "", vimeo_video_id: "", duration: "" })
+    setLessonForm({ lesson_type: "video", title: "", description: "", vimeo_video_id: "", pdf_file_url: "", pdf_file_name: "", duration: "" })
+    setPdfFile(null)
   }
 
   const formatDuration = (seconds: number) => {
@@ -389,7 +417,11 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
                       key={lesson.id}
                       className="flex items-center gap-3 p-3 bg-background rounded-lg border border-border"
                     >
-                      <Video className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      {(lesson.lesson_type || "video") === "pdf" ? (
+                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      ) : (
+                        <Video className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      )}
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm truncate">{lesson.title}</h4>
                         <p className="text-xs text-muted-foreground">{formatDuration(lesson.duration)}</p>
@@ -540,11 +572,15 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
                         <div className="w-6 text-center text-sm text-muted-foreground">
                           {lessonIndex + 1}
                         </div>
-                        <Video className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        {(lesson.lesson_type || "video") === "pdf" ? (
+                          <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        ) : (
+                          <Video className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        )}
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium truncate">{lesson.title}</h4>
                           <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                            <span>{lesson.vimeo_video_id}</span>
+                            <span>{(lesson.lesson_type || "video") === "pdf" ? lesson.pdf_file_name || "PDF lesson" : lesson.vimeo_video_id}</span>
                             <span>•</span>
                             <span>{formatDuration(lesson.duration)}</span>
                           </div>
@@ -577,33 +613,96 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
                           {editingLesson ? "Edit Lesson" : "Add New Lesson"}
                         </h4>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="vimeo-id" className="text-xs">Vimeo Video ID *</Label>
-                            <div className="flex gap-2">
-                              <Input
-                                id="vimeo-id"
-                                placeholder="123456789"
-                                value={lessonForm.vimeo_video_id}
-                                onChange={(e) =>
-                                  setLessonForm({ ...lessonForm, vimeo_video_id: e.target.value })
-                                }
-                                className="h-9 text-sm"
-                                required
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={fetchVimeoInfo}
-                                disabled={fetchingInfo || !lessonForm.vimeo_video_id}
-                              >
-                                {fetchingInfo ? <Loader2 className="h-3 w-3 animate-spin" /> : "Fetch"}
-                              </Button>
-                            </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Lesson Type</Label>
+                          <div className="inline-flex rounded-lg border border-border bg-background p-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLessonForm({ ...lessonForm, lesson_type: "video" })
+                                setPdfFile(null)
+                              }}
+                              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                                lessonForm.lesson_type === "video"
+                                  ? "bg-foreground text-background"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              <Video className="h-4 w-4" />
+                              Video
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLessonForm({ ...lessonForm, lesson_type: "pdf", vimeo_video_id: "" })
+                              }
+                              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                                lessonForm.lesson_type === "pdf"
+                                  ? "bg-foreground text-background"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              <FileText className="h-4 w-4" />
+                              PDF
+                            </button>
                           </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          {lessonForm.lesson_type === "video" ? (
+                            <div className="space-y-2">
+                              <Label htmlFor="vimeo-id" className="text-xs">Vimeo Video ID *</Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  id="vimeo-id"
+                                  placeholder="123456789"
+                                  value={lessonForm.vimeo_video_id}
+                                  onChange={(e) =>
+                                    setLessonForm({ ...lessonForm, vimeo_video_id: e.target.value })
+                                  }
+                                  className="h-9 text-sm"
+                                  required={lessonForm.lesson_type === "video"}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={fetchVimeoInfo}
+                                  disabled={fetchingInfo || !lessonForm.vimeo_video_id}
+                                >
+                                  {fetchingInfo ? <Loader2 className="h-3 w-3 animate-spin" /> : "Fetch"}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <Label htmlFor="pdf-file" className="text-xs">PDF File *</Label>
+                              <Input
+                                id="pdf-file"
+                                type="file"
+                                accept="application/pdf,.pdf"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] || null
+                                  if (file && file.type !== "application/pdf") {
+                                    toast.error("Please upload a PDF file")
+                                    e.target.value = ""
+                                    return
+                                  }
+                                  setPdfFile(file)
+                                }}
+                                className="h-9 text-sm"
+                              />
+                              {(pdfFile || lessonForm.pdf_file_name) && (
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {pdfFile?.name || lessonForm.pdf_file_name}
+                                </p>
+                              )}
+                            </div>
+                          )}
                           <div className="space-y-2">
-                            <Label htmlFor="lesson-duration" className="text-xs">Duration (seconds) *</Label>
+                            <Label htmlFor="lesson-duration" className="text-xs">
+                              {lessonForm.lesson_type === "pdf" ? "Estimated Duration (seconds)" : "Duration (seconds) *"}
+                            </Label>
                             <Input
                               id="lesson-duration"
                               type="number"
@@ -611,7 +710,7 @@ export default function ManageLessonsPage({ params }: { params: Promise<{ id: st
                               value={lessonForm.duration}
                               onChange={(e) => setLessonForm({ ...lessonForm, duration: e.target.value })}
                               className="h-9 text-sm"
-                              required
+                              required={lessonForm.lesson_type === "video"}
                             />
                           </div>
                         </div>

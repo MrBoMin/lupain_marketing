@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getSupabasePublicKey, getSupabaseUrl } from './config'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -7,8 +8,8 @@ export async function updateSession(request: NextRequest) {
   })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getSupabaseUrl(),
+    getSupabasePublicKey(),
     {
       cookies: {
         getAll() {
@@ -37,21 +38,6 @@ export async function updateSession(request: NextRequest) {
 
   if (request.nextUrl.pathname.startsWith('/admin') && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  // Check if user is admin for /admin routes
-  if (request.nextUrl.pathname.startsWith('/admin') && user) {
-    const { data: profile, error } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    console.log('Admin check - user:', user.id, 'profile:', profile, 'error:', error)
-
-    if (!profile || profile.role !== 'admin') {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
   }
 
   return supabaseResponse

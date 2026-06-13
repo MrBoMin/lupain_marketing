@@ -15,6 +15,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { logout } from "@/app/actions/auth"
+import { BRAND_NAME } from "@/lib/brand"
+import { getInitials } from "@/lib/user-display"
 
 interface NavbarProps {
   user?: {
@@ -33,18 +35,6 @@ export function Navbar({ user }: NavbarProps) {
     await logout()
   }
 
-  const getInitials = (name: string | null, email: string) => {
-    if (name) {
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    }
-    return email[0].toUpperCase()
-  }
-
   return (
     <nav className="border-b border-border/40 bg-background/80 backdrop-blur-xl sticky top-0 z-50">
       <div className="container mx-auto px-6 h-16 flex items-center justify-between">
@@ -52,10 +42,10 @@ export function Navbar({ user }: NavbarProps) {
           <Link href="/" className="flex items-center gap-3 font-bold text-lg tracking-tight">
             <img
               src="/logo.png"
-              alt="Luu Pain Marketing"
+              alt={BRAND_NAME}
               className="w-9 h-9 rounded-lg object-cover"
             />
-            <span className="hidden sm:inline">Luu Pain Marketing</span>
+            <span className="hidden sm:inline">{BRAND_NAME}</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-1">

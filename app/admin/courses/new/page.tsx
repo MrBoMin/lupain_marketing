@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { ChevronLeft, Upload, Loader2, X } from "lucide-react"
+import { createCourse, updateCourseThumbnail } from "./actions"
 
 export default function NewCoursePage() {
   const router = useRouter()
@@ -56,12 +57,8 @@ export default function NewCoursePage() {
     setLoading(true)
 
     try {
-      const supabase = createClient()
-      
       // First create the course to get the ID
-      const { data: course, error: createError } = await supabase
-        .from("courses")
-        .insert({
+      const result = await createCourse({
           title: formData.title,
           description: formData.description,
           instructor_name: formData.instructor_name,
@@ -74,14 +71,17 @@ export default function NewCoursePage() {
           currency: formData.currency || "MMK",
           promo_tag: formData.promo_tag || null,
         })
-        .select()
-        .single()
 
-      if (createError) throw createError
+      if (result.error || !result.course) {
+        throw new Error(result.error || "Failed to create course")
+      }
+
+      const course = result.course
 
       // Upload image if selected
       let thumbnailUrl = null
       if (tempImageFile && course) {
+        const supabase = createClient()
         setUploading(true)
         const fileExt = tempImageFile.name.split(".").pop()
         const fileName = `${course.id}-${Date.now()}.${fileExt}`
@@ -100,17 +100,19 @@ export default function NewCoursePage() {
           thumbnailUrl = publicUrl
 
           // Update course with thumbnail URL
-          await supabase
-            .from("courses")
-            .update({ thumbnail_url: thumbnailUrl })
-            .eq("id", course.id)
+          const updateResult = await updateCourseThumbnail(course.id, thumbnailUrl)
+          if (updateResult.error) {
+            console.error("Thumbnail update error:", updateResult.error)
+          }
         }
       }
 
       toast.success("Course created successfully")
       router.push(`/admin/courses/${course.id}`)
     } catch (error) {
-      toast.error("Failed to create course")
+      const message = error instanceof Error ? error.message : "Failed to create course"
+      console.error("Create course error:", error)
+      toast.error(message)
     } finally {
       setLoading(false)
       setUploading(false)

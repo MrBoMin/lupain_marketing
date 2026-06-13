@@ -83,7 +83,10 @@ export interface Database {
           course_id: string
           title: string
           description: string | null
-          vimeo_video_id: string
+          lesson_type: 'video' | 'pdf'
+          vimeo_video_id: string | null
+          pdf_file_url: string | null
+          pdf_file_name: string | null
           order: number
           duration: number
           created_at: string
@@ -94,7 +97,10 @@ export interface Database {
           course_id: string
           title: string
           description?: string | null
-          vimeo_video_id: string
+          lesson_type?: 'video' | 'pdf'
+          vimeo_video_id?: string | null
+          pdf_file_url?: string | null
+          pdf_file_name?: string | null
           order: number
           duration: number
           created_at?: string
@@ -105,7 +111,10 @@ export interface Database {
           course_id?: string
           title?: string
           description?: string | null
-          vimeo_video_id?: string
+          lesson_type?: 'video' | 'pdf'
+          vimeo_video_id?: string | null
+          pdf_file_url?: string | null
+          pdf_file_name?: string | null
           order?: number
           duration?: number
           created_at?: string

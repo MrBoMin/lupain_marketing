@@ -52,6 +52,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   const [processing, setProcessing] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const [showRejectForm, setShowRejectForm] = useState(false)
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
 
   useEffect(() => {
     params.then((p) => {
@@ -80,6 +81,21 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     }
 
     setEnrollment(data)
+
+    if (data.payment_screenshot_url) {
+      if (data.payment_screenshot_url.startsWith("http")) {
+        setScreenshotUrl(data.payment_screenshot_url)
+      } else {
+        const { data: signedUrlData } = await supabase.storage
+          .from("payment-screenshots")
+          .createSignedUrl(data.payment_screenshot_url, 60 * 60)
+
+        setScreenshotUrl(signedUrlData?.signedUrl || null)
+      }
+    } else {
+      setScreenshotUrl(null)
+    }
+
     setLoading(false)
   }
 
@@ -236,18 +252,18 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
             <h2 className="font-semibold">Payment Screenshot</h2>
           </div>
 
-          {enrollment.payment_screenshot_url ? (
+          {screenshotUrl ? (
             <div className="space-y-4">
               <div className="relative aspect-video max-w-lg bg-secondary rounded-lg overflow-hidden">
                 <Image
-                  src={enrollment.payment_screenshot_url}
+                  src={screenshotUrl}
                   alt="Payment screenshot"
                   fill
                   className="object-contain"
                 />
               </div>
               <a
-                href={enrollment.payment_screenshot_url}
+                href={screenshotUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -356,4 +372,3 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     </div>
   )
 }
-

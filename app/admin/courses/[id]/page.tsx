@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { ChevronLeft, BookOpen, Trash2, Upload, Loader2, X, Clock } from "lucide-react"
+import { deleteAdminCourse, getAdminCourse, updateAdminCourse } from "./actions"
 
 export default function EditCoursePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
@@ -44,24 +45,16 @@ export default function EditCoursePage({ params }: { params: Promise<{ id: strin
 
   const fetchCourse = async (id: string) => {
     setFetching(true)
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from("courses")
-      .select("*")
-      .eq("id", id)
-      .single()
+    const result = await getAdminCourse(id)
 
-    if (error) {
-      toast.error("Failed to fetch course")
+    if (result.error || !result.course) {
+      toast.error(result.error || "Failed to fetch course")
       setFetching(false)
       return
     }
 
-    // Fetch lessons to calculate total duration
-    const { data: lessons } = await supabase
-      .from("lessons")
-      .select("duration")
-      .eq("course_id", id)
+    const data = result.course
+    const lessons = result.lessons || []
 
     const totalSeconds = lessons?.reduce((acc, l) => acc + (l.duration || 0), 0) || 0
     const hours = Math.floor(totalSeconds / 3600)
@@ -155,10 +148,7 @@ export default function EditCoursePage({ params }: { params: Promise<{ id: strin
     setLoading(true)
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from("courses")
-        .update({
+      const result = await updateAdminCourse(courseId, {
           title: formData.title,
           description: formData.description,
           instructor_name: formData.instructor_name,
@@ -172,13 +162,13 @@ export default function EditCoursePage({ params }: { params: Promise<{ id: strin
           promo_tag: formData.promo_tag || null,
           promo_deadline: formData.promo_deadline ? new Date(formData.promo_deadline).toISOString() : null,
         })
-        .eq("id", courseId)
 
-      if (error) throw error
+      if (result.error) throw new Error(result.error)
 
       toast.success("Course updated successfully")
     } catch (error) {
-      toast.error("Failed to update course")
+      const message = error instanceof Error ? error.message : "Failed to update course"
+      toast.error(message)
     } finally {
       setLoading(false)
     }
@@ -203,9 +193,9 @@ export default function EditCoursePage({ params }: { params: Promise<{ id: strin
         }
       }
 
-      const { error } = await supabase.from("courses").delete().eq("id", courseId)
+      const result = await deleteAdminCourse(courseId)
 
-      if (error) throw error
+      if (result.error) throw new Error(result.error)
 
       toast.success("Course deleted successfully")
       router.push("/admin/courses")

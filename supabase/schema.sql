@@ -35,7 +35,10 @@ CREATE TABLE lessons (
   course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
-  vimeo_video_id TEXT NOT NULL,
+  lesson_type TEXT DEFAULT 'video' CHECK (lesson_type IN ('video', 'pdf')),
+  vimeo_video_id TEXT,
+  pdf_file_url TEXT,
+  pdf_file_name TEXT,
   "order" INTEGER NOT NULL,
   duration INTEGER NOT NULL DEFAULT 0, -- in seconds
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

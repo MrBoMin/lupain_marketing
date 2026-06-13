@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { ArrowLeft } from "lucide-react"
+import { BRAND_NAME } from "@/lib/brand"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -43,7 +44,7 @@ export default function LoginPage() {
       {/* Left Panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-secondary items-center justify-center p-12 border-r border-border">
         <div className="max-w-md">
-          <img src="/logo.png" alt="Luu Pain Marketing" className="w-14 h-14 rounded-xl object-cover mb-8" />
+          <img src="/logo.png" alt={BRAND_NAME} className="w-14 h-14 rounded-xl object-cover mb-8" />
           <h1 className="text-4xl font-bold mb-4 leading-tight">
             Welcome back to your learning journey
           </h1>
