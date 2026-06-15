@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -18,7 +18,6 @@ import {
   Clock, 
   User, 
   BookOpen,
-  Calendar,
   ImageIcon,
   ExternalLink
 } from "lucide-react"
@@ -54,14 +53,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
 
-  useEffect(() => {
-    params.then((p) => {
-      setEnrollmentId(p.id)
-      fetchEnrollment(p.id)
-    })
-  }, [params])
-
-  const fetchEnrollment = async (id: string) => {
+  const fetchEnrollment = useCallback(async (id: string) => {
     const supabase = createClient()
 
     const { data, error } = await supabase
@@ -97,7 +89,14 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     }
 
     setLoading(false)
-  }
+  }, [router])
+
+  useEffect(() => {
+    params.then((p) => {
+      setEnrollmentId(p.id)
+      fetchEnrollment(p.id)
+    })
+  }, [fetchEnrollment, params])
 
   const handleApprove = async () => {
     if (!enrollmentId) return
@@ -111,7 +110,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       toast.success("Enrollment approved!")
       fetchEnrollment(enrollmentId)
     } catch (error) {
-      toast.error("Failed to approve enrollment")
+      toast.error(error instanceof Error ? error.message : "Failed to approve enrollment")
     } finally {
       setProcessing(false)
     }
@@ -130,7 +129,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       fetchEnrollment(enrollmentId)
       setShowRejectForm(false)
     } catch (error) {
-      toast.error("Failed to reject enrollment")
+      toast.error(error instanceof Error ? error.message : "Failed to reject enrollment")
     } finally {
       setProcessing(false)
     }

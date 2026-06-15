@@ -2,7 +2,24 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { sendEmail, getEnrollmentApprovedEmail, getEnrollmentRejectedEmail } from "@/lib/email"
+
+type EnrollmentRelation<T> = T | T[] | null
+
+type EnrollmentForNotification = {
+  users: EnrollmentRelation<{
+    email: string | null
+    full_name: string | null
+  }>
+  courses: EnrollmentRelation<{
+    title: string | null
+  }>
+}
+
+function firstRelation<T>(relation: EnrollmentRelation<T>) {
+  return Array.isArray(relation) ? relation[0] : relation
+}
 
 export async function updateEnrollmentStatus(
   enrollmentId: string,
@@ -26,23 +43,25 @@ export async function updateEnrollmentStatus(
     return { error: "Not authorized" }
   }
 
-  // Get enrollment details with user and course info
-  const { data: enrollment } = await supabase
+  const adminSupabase = createAdminClient()
+
+  // Get enrollment details with user and course info. Use the admin client after
+  // verifying the current user is an admin so RLS policy drift cannot block review.
+  const { data: enrollment, error: enrollmentError } = await adminSupabase
     .from("enrollments")
     .select(`
-      *,
       users:user_id (email, full_name),
       courses:course_id (title)
     `)
     .eq("id", enrollmentId)
-    .single()
+    .single<EnrollmentForNotification>()
 
-  if (!enrollment) {
+  if (enrollmentError || !enrollment) {
     return { error: "Enrollment not found" }
   }
 
   // Update enrollment status
-  const { error } = await supabase
+  const { error } = await adminSupabase
     .from("enrollments")
     .update({
       status,
@@ -57,9 +76,11 @@ export async function updateEnrollmentStatus(
   }
 
   // Send email notification
-  const studentEmail = enrollment.users?.email
-  const studentName = enrollment.users?.full_name || "Student"
-  const courseName = enrollment.courses?.title || "Course"
+  const student = firstRelation(enrollment.users)
+  const course = firstRelation(enrollment.courses)
+  const studentEmail = student?.email
+  const studentName = student?.full_name || "Student"
+  const courseName = course?.title || "Course"
 
   if (studentEmail) {
     try {
@@ -86,6 +107,7 @@ export async function updateEnrollmentStatus(
 
   // Revalidate the enrollments list page
   revalidatePath("/admin/enrollments")
+  revalidatePath(`/admin/enrollments/${enrollmentId}`)
   
   return { success: true }
 }
