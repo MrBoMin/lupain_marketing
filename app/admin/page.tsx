@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { getUser } from "@/app/actions/auth"
 import { Navbar } from "@/components/navbar"
 import { BookOpen, Users, GraduationCap, ArrowRight, Plus, PlayCircle, type LucideIcon } from "lucide-react"
@@ -54,7 +54,7 @@ export default async function AdminDashboard() {
     redirect("/dashboard")
   }
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const [
     { count: totalCourses },
@@ -75,8 +75,8 @@ export default async function AdminDashboard() {
       .select(`
         id,
         enrolled_at,
-        users (full_name, email),
-        courses (title)
+        users:user_id (full_name, email),
+        courses:course_id (title)
       `)
       .order("enrolled_at", { ascending: false })
       .limit(5),

@@ -60,8 +60,8 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       .from("enrollments")
       .select(`
         *,
-        users (id, email, full_name),
-        courses (id, title)
+        users:user_id (id, email, full_name),
+        courses:course_id (id, title)
       `)
       .eq("id", id)
       .single()
@@ -72,7 +72,11 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       return
     }
 
-    setEnrollment(data)
+    setEnrollment({
+      ...data,
+      users: Array.isArray(data.users) ? data.users[0] : data.users,
+      courses: Array.isArray(data.courses) ? data.courses[0] : data.courses,
+    })
 
     if (data.payment_screenshot_url) {
       if (data.payment_screenshot_url.startsWith("http")) {

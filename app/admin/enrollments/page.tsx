@@ -1,9 +1,26 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { getUser } from "@/app/actions/auth"
 import { Navbar } from "@/components/navbar"
 import { Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
+
+export const dynamic = "force-dynamic"
+
+type Enrollment = {
+  id: string
+  status: "pending" | "approved" | "rejected"
+  enrolled_at: string
+  users: {
+    id: string
+    email: string | null
+    full_name: string | null
+  } | null
+  courses: {
+    id: string
+    title: string | null
+  } | null
+}
 
 export default async function AdminEnrollmentsPage() {
   const user = await getUser()
@@ -12,18 +29,19 @@ export default async function AdminEnrollmentsPage() {
     redirect("/dashboard")
   }
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   // Get all enrollments with user and course info
-  const { data: enrollments } = await supabase
+  const { data: enrollmentsData, error: enrollmentsError } = await supabase
     .from("enrollments")
     .select(`
       *,
-      users (id, email, full_name),
-      courses (id, title)
+      users:user_id (id, email, full_name),
+      courses:course_id (id, title)
     `)
     .order("enrolled_at", { ascending: false })
 
+  const enrollments = (enrollmentsData || []) as Enrollment[]
   const pendingCount = enrollments?.filter((e) => e.status === "pending").length || 0
   const approvedCount = enrollments?.filter((e) => e.status === "approved").length || 0
   const rejectedCount = enrollments?.filter((e) => e.status === "rejected").length || 0
@@ -87,6 +105,12 @@ export default async function AdminEnrollmentsPage() {
           </div>
         </div>
 
+        {enrollmentsError && (
+          <div className="mb-8 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+            {enrollmentsError.message}
+          </div>
+        )}
+
         {/* Pending Requests */}
         {pendingCount > 0 && (
           <div className="mb-10">
@@ -97,7 +121,7 @@ export default async function AdminEnrollmentsPage() {
             <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
               {enrollments
                 ?.filter((e) => e.status === "pending")
-                .map((enrollment: any) => (
+                .map((enrollment) => (
                   <Link
                     key={enrollment.id}
                     href={`/admin/enrollments/${enrollment.id}`}
@@ -141,7 +165,7 @@ export default async function AdminEnrollmentsPage() {
           <h2 className="text-xl font-semibold mb-4">All Enrollments</h2>
           {enrollments && enrollments.length > 0 ? (
             <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
-              {enrollments.map((enrollment: any) => (
+              {enrollments.map((enrollment) => (
                 <Link
                   key={enrollment.id}
                   href={`/admin/enrollments/${enrollment.id}`}
