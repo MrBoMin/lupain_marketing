@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import Image from "next/image"
 import { createClient } from "@/lib/supabase/client"
 import { updateEnrollmentStatus } from "./actions"
 import { Button } from "@/components/ui/button"
@@ -52,6 +51,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   const [rejectReason, setRejectReason] = useState("")
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
+  const [screenshotLoadError, setScreenshotLoadError] = useState(false)
 
   const fetchEnrollment = useCallback(async (id: string) => {
     const supabase = createClient()
@@ -79,6 +79,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     })
 
     if (data.payment_screenshot_url) {
+      setScreenshotLoadError(false)
       if (data.payment_screenshot_url.startsWith("http")) {
         setScreenshotUrl(data.payment_screenshot_url)
       } else {
@@ -89,6 +90,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
         setScreenshotUrl(signedUrlData?.signedUrl || null)
       }
     } else {
+      setScreenshotLoadError(false)
       setScreenshotUrl(null)
     }
 
@@ -257,13 +259,21 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
 
           {screenshotUrl ? (
             <div className="space-y-4">
-              <div className="relative aspect-video max-w-lg bg-secondary rounded-lg overflow-hidden">
-                <Image
-                  src={screenshotUrl}
-                  alt="Payment screenshot"
-                  fill
-                  className="object-contain"
-                />
+              <div className="flex aspect-video max-w-lg items-center justify-center overflow-hidden rounded-lg bg-secondary">
+                {screenshotLoadError ? (
+                  <div className="px-6 text-center text-sm text-muted-foreground">
+                    Unable to display the screenshot preview. Open it in a new tab.
+                  </div>
+                ) : (
+                  // Private Supabase signed URLs should load directly instead of through Next image optimization.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={screenshotUrl}
+                    alt="Payment screenshot"
+                    className="h-full w-full object-contain"
+                    onError={() => setScreenshotLoadError(true)}
+                  />
+                )}
               </div>
               <a
                 href={screenshotUrl}
